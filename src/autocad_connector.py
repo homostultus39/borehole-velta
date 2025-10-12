@@ -120,7 +120,26 @@ class Win32COMConnector(AutoCADConnector):
             else:
                 raise Exception("Не удалось подключиться ни к одной версии AutoCAD")
             
-            self.doc = self.acad.ActiveDocument
+            # Проверяем, есть ли активный документ
+            try:
+                self.doc = self.acad.ActiveDocument
+                if self.doc is None:
+                    # Создаем новый документ, если нет активного
+                    logger.info("📄 Создание нового документа в AutoCAD...")
+                    self.acad.Documents.Add()
+                    self.doc = self.acad.ActiveDocument
+                    logger.info("✅ Новый документ создан")
+            except Exception as doc_error:
+                logger.warning(f"⚠️ Проблема с документом: {doc_error}")
+                # Пытаемся создать новый документ
+                try:
+                    self.acad.Documents.Add()
+                    self.doc = self.acad.ActiveDocument
+                    logger.info("✅ Новый документ создан после ошибки")
+                except Exception as create_error:
+                    logger.error(f"❌ Не удалось создать документ: {create_error}")
+                    return False
+            
             self.is_connected = True
             return True
         except Exception as e:
@@ -182,7 +201,26 @@ class ComTypesConnector(AutoCADConnector):
             else:
                 raise Exception("Не удалось подключиться ни к одной версии AutoCAD")
             
-            self.doc = self.acad.ActiveDocument
+            # Проверяем, есть ли активный документ
+            try:
+                self.doc = self.acad.ActiveDocument
+                if self.doc is None:
+                    # Создаем новый документ, если нет активного
+                    logger.info("📄 Создание нового документа в AutoCAD...")
+                    self.acad.Documents.Add()
+                    self.doc = self.acad.ActiveDocument
+                    logger.info("✅ Новый документ создан")
+            except Exception as doc_error:
+                logger.warning(f"⚠️ Проблема с документом: {doc_error}")
+                # Пытаемся создать новый документ
+                try:
+                    self.acad.Documents.Add()
+                    self.doc = self.acad.ActiveDocument
+                    logger.info("✅ Новый документ создан после ошибки")
+                except Exception as create_error:
+                    logger.error(f"❌ Не удалось создать документ: {create_error}")
+                    return False
+            
             self.is_connected = True
             return True
         except Exception as e:
@@ -221,7 +259,27 @@ class DirectAutoCADConnector(AutoCADConnector):
             
             # Используем только рабочую версию из диагностики
             self.acad = win32com.client.GetActiveObject("AutoCAD.Application.25")
-            self.doc = self.acad.ActiveDocument
+            
+            # Проверяем, есть ли активный документ
+            try:
+                self.doc = self.acad.ActiveDocument
+                if self.doc is None:
+                    # Создаем новый документ, если нет активного
+                    logger.info("📄 Создание нового документа в AutoCAD...")
+                    self.acad.Documents.Add()
+                    self.doc = self.acad.ActiveDocument
+                    logger.info("✅ Новый документ создан")
+            except Exception as doc_error:
+                logger.warning(f"⚠️ Проблема с документом: {doc_error}")
+                # Пытаемся создать новый документ
+                try:
+                    self.acad.Documents.Add()
+                    self.doc = self.acad.ActiveDocument
+                    logger.info("✅ Новый документ создан после ошибки")
+                except Exception as create_error:
+                    logger.error(f"❌ Не удалось создать документ: {create_error}")
+                    return False
+            
             self.is_connected = True
             logger.info("✅ Прямое подключение к AutoCAD.Application.25 успешно")
             return True
