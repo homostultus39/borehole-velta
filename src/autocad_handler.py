@@ -5,6 +5,7 @@
 """
 
 import os
+import time
 from typing import List, Dict, Any, Optional
 import logging
 
@@ -99,57 +100,117 @@ class AutoCADHandler:
     
     def find_text_entities(self) -> List[Dict[str, Any]]:
         """
-        Поиск текстовых объектов в документе.
+        Поиск текстовых объектов в документе с оптимизацией.
         
         Returns:
             List[Dict[str, Any]]: Список словарей с информацией о текстовых объектах
         """
-        entities = self.get_all_entities()
+        if not self.is_connected or not self.doc:
+            logger.error("Нет активного документа")
+            return []
+        
         text_entities = []
+        processed_count = 0
         
-        for entity in entities:
-            try:
-                # Проверяем, является ли объект текстом
-                if hasattr(entity, 'TextString'):
-                    text_data = {
-                        'text': entity.TextString,
-                        'position': (entity.InsertionPoint[0], entity.InsertionPoint[1]),
-                        'layer': getattr(entity, 'Layer', 'Unknown'),
-                        'entity_type': entity.EntityName
-                    }
-                    text_entities.append(text_data)
-            except Exception as e:
-                logger.warning(f"Ошибка обработки объекта: {e}")
-                continue
-        
-        logger.info(f"Найдено {len(text_entities)} текстовых объектов")
-        return text_entities
+        try:
+            logger.info("🔍 Начинаем поиск текстовых объектов...")
+            start_time = time.time()
+            max_search_time = 30  # Максимум 30 секунд на поиск
+            
+            for entity in self.doc.ModelSpace:
+                processed_count += 1
+                
+                # Проверяем время выполнения
+                if time.time() - start_time > max_search_time:
+                    logger.warning(f"⏰ Поиск прерван по времени ({max_search_time} сек). Обработано {processed_count} объектов")
+                    break
+                
+                # Показываем прогресс каждые 100 объектов
+                if processed_count % 100 == 0:
+                    elapsed = time.time() - start_time
+                    logger.info(f"📊 Обработано {processed_count} объектов за {elapsed:.1f} сек...")
+                
+                try:
+                    # Проверяем, является ли объект текстом
+                    if hasattr(entity, 'TextString'):
+                        text_data = {
+                            'text': entity.TextString,
+                            'position': (entity.InsertionPoint[0], entity.InsertionPoint[1]),
+                            'layer': getattr(entity, 'Layer', 'Unknown'),
+                            'entity_type': entity.EntityName
+                        }
+                        text_entities.append(text_data)
+                        
+                        # Показываем найденный текст
+                        if len(text_entities) <= 5:  # Показываем первые 5
+                            logger.info(f"📝 Найден текст: '{text_data['text']}'")
+                
+                except Exception as e:
+                    # Пропускаем проблемные объекты без остановки
+                    continue
+            
+            logger.info(f"✅ Поиск завершен! Найдено {len(text_entities)} текстовых объектов из {processed_count} обработанных")
+            return text_entities
+            
+        except Exception as e:
+            logger.error(f"Ошибка поиска текстовых объектов: {e}")
+            return []
     
     def find_circles(self) -> List[Dict[str, Any]]:
         """
-        Поиск кругов в документе.
+        Поиск кругов в документе с оптимизацией.
         
         Returns:
             List[Dict[str, Any]]: Список словарей с информацией о кругах
         """
-        entities = self.get_all_entities()
+        if not self.is_connected or not self.doc:
+            logger.error("Нет активного документа")
+            return []
+        
         circles = []
+        processed_count = 0
         
-        for entity in entities:
-            try:
-                if entity.EntityName == 'AcDbCircle':
-                    circle_data = {
-                        'center': (entity.Center[0], entity.Center[1]),
-                        'radius': entity.Radius,
-                        'layer': getattr(entity, 'Layer', 'Unknown')
-                    }
-                    circles.append(circle_data)
-            except Exception as e:
-                logger.warning(f"Ошибка обработки круга: {e}")
-                continue
-        
-        logger.info(f"Найдено {len(circles)} кругов")
-        return circles
+        try:
+            logger.info("🔍 Начинаем поиск кругов...")
+            start_time = time.time()
+            max_search_time = 30  # Максимум 30 секунд на поиск
+            
+            for entity in self.doc.ModelSpace:
+                processed_count += 1
+                
+                # Проверяем время выполнения
+                if time.time() - start_time > max_search_time:
+                    logger.warning(f"⏰ Поиск прерван по времени ({max_search_time} сек). Обработано {processed_count} объектов")
+                    break
+                
+                # Показываем прогресс каждые 100 объектов
+                if processed_count % 100 == 0:
+                    elapsed = time.time() - start_time
+                    logger.info(f"📊 Обработано {processed_count} объектов за {elapsed:.1f} сек...")
+                
+                try:
+                    if entity.EntityName == 'AcDbCircle':
+                        circle_data = {
+                            'center': (entity.Center[0], entity.Center[1]),
+                            'radius': entity.Radius,
+                            'layer': getattr(entity, 'Layer', 'Unknown')
+                        }
+                        circles.append(circle_data)
+                        
+                        # Показываем найденный круг
+                        if len(circles) <= 5:  # Показываем первые 5
+                            logger.info(f"⭕ Найден круг: центр {circle_data['center']}, радиус {circle_data['radius']}")
+                
+                except Exception as e:
+                    # Пропускаем проблемные объекты без остановки
+                    continue
+            
+            logger.info(f"✅ Поиск завершен! Найдено {len(circles)} кругов из {processed_count} обработанных")
+            return circles
+            
+        except Exception as e:
+            logger.error(f"Ошибка поиска кругов: {e}")
+            return []
     
     def close_document(self) -> bool:
         """
