@@ -296,8 +296,27 @@ class DirectAutoCADConnector(AutoCADConnector):
     def open_document(self, file_path: str) -> bool:
         try:
             if self.acad:
+                # Проверяем, есть ли уже открытый документ
+                try:
+                    current_doc = self.acad.ActiveDocument
+                    if current_doc:
+                        current_name = getattr(current_doc, 'Name', 'Unknown')
+                        logger.info(f"📄 Текущий документ: {current_name}")
+                        
+                        # Проверяем, это ли тот файл, который нам нужен
+                        if file_path.lower().endswith(current_name.lower()) or current_name.lower() in file_path.lower():
+                            logger.info("✅ Нужный документ уже открыт, используем его")
+                            self.doc = current_doc
+                            return True
+                        else:
+                            logger.info("📂 Открываем новый документ...")
+                except:
+                    logger.info("📂 Нет активного документа, открываем новый...")
+                
+                # Открываем документ
                 self.acad.ActiveDocument = self.acad.Documents.Open(file_path)
                 self.doc = self.acad.ActiveDocument
+                logger.info("✅ Документ открыт успешно")
                 return True
         except Exception as e:
             logger.error(f"Ошибка открытия документа через прямое подключение: {e}")

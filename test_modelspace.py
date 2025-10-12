@@ -56,6 +56,13 @@ def test_modelspace(file_path: str):
         doc = handler.doc
         print(f"📄 Документ: {type(doc)}")
         
+        # Показываем информацию о документе
+        try:
+            doc_name = getattr(doc, 'Name', 'Unknown')
+            print(f"📄 Имя документа: {doc_name}")
+        except Exception as e:
+            print(f"⚠️ Не удалось получить имя документа: {e}")
+        
         # Получаем ModelSpace разными способами
         model_space = None
         
