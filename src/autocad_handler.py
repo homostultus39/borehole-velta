@@ -117,10 +117,33 @@ class AutoCADHandler:
             start_time = time.time()
             max_search_time = 30  # Максимум 30 секунд на поиск
             
-            # Получаем ModelSpace правильно
+            # Получаем ModelSpace правильно через COM-интерфейс
             try:
-                model_space = self.doc.ModelSpace
-                logger.info(f"📋 ModelSpace получен, тип: {type(model_space)}")
+                # Пытаемся получить ModelSpace разными способами
+                model_space = None
+                
+                # Способ 1: Прямое обращение
+                try:
+                    model_space = self.doc.ModelSpace
+                    logger.info(f"📋 ModelSpace получен (способ 1), тип: {type(model_space)}")
+                except:
+                    # Способ 2: Через ActiveDocument
+                    try:
+                        model_space = self.acad.ActiveDocument.ModelSpace
+                        logger.info(f"📋 ModelSpace получен (способ 2), тип: {type(model_space)}")
+                    except:
+                        # Способ 3: Через Documents коллекцию
+                        try:
+                            model_space = self.acad.Documents.Item(0).ModelSpace
+                            logger.info(f"📋 ModelSpace получен (способ 3), тип: {type(model_space)}")
+                        except Exception as e:
+                            logger.error(f"❌ Все способы получения ModelSpace не сработали: {e}")
+                            return []
+                
+                if model_space is None:
+                    logger.error("❌ ModelSpace не получен ни одним способом")
+                    return []
+                    
             except Exception as e:
                 logger.error(f"❌ Ошибка получения ModelSpace: {e}")
                 return []
@@ -183,10 +206,33 @@ class AutoCADHandler:
             start_time = time.time()
             max_search_time = 30  # Максимум 30 секунд на поиск
             
-            # Получаем ModelSpace правильно
+            # Получаем ModelSpace правильно через COM-интерфейс
             try:
-                model_space = self.doc.ModelSpace
-                logger.info(f"📋 ModelSpace получен, тип: {type(model_space)}")
+                # Пытаемся получить ModelSpace разными способами
+                model_space = None
+                
+                # Способ 1: Прямое обращение
+                try:
+                    model_space = self.doc.ModelSpace
+                    logger.info(f"📋 ModelSpace получен (способ 1), тип: {type(model_space)}")
+                except:
+                    # Способ 2: Через ActiveDocument
+                    try:
+                        model_space = self.acad.ActiveDocument.ModelSpace
+                        logger.info(f"📋 ModelSpace получен (способ 2), тип: {type(model_space)}")
+                    except:
+                        # Способ 3: Через Documents коллекцию
+                        try:
+                            model_space = self.acad.Documents.Item(0).ModelSpace
+                            logger.info(f"📋 ModelSpace получен (способ 3), тип: {type(model_space)}")
+                        except Exception as e:
+                            logger.error(f"❌ Все способы получения ModelSpace не сработали: {e}")
+                            return []
+                
+                if model_space is None:
+                    logger.error("❌ ModelSpace не получен ни одним способом")
+                    return []
+                    
             except Exception as e:
                 logger.error(f"❌ Ошибка получения ModelSpace: {e}")
                 return []

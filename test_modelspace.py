@@ -56,9 +56,35 @@ def test_modelspace(file_path: str):
         doc = handler.doc
         print(f"📄 Документ: {type(doc)}")
         
-        # Получаем ModelSpace
-        model_space = doc.ModelSpace
-        print(f"📋 ModelSpace: {type(model_space)}")
+        # Получаем ModelSpace разными способами
+        model_space = None
+        
+        # Способ 1: Прямое обращение
+        try:
+            model_space = doc.ModelSpace
+            print(f"📋 ModelSpace (способ 1): {type(model_space)}")
+        except Exception as e:
+            print(f"❌ Способ 1 не сработал: {e}")
+            
+            # Способ 2: Через ActiveDocument
+            try:
+                model_space = handler.acad.ActiveDocument.ModelSpace
+                print(f"📋 ModelSpace (способ 2): {type(model_space)}")
+            except Exception as e:
+                print(f"❌ Способ 2 не сработал: {e}")
+                
+                # Способ 3: Через Documents коллекцию
+                try:
+                    model_space = handler.acad.Documents.Item(0).ModelSpace
+                    print(f"📋 ModelSpace (способ 3): {type(model_space)}")
+                except Exception as e:
+                    print(f"❌ Способ 3 не сработал: {e}")
+                    print("❌ Все способы получения ModelSpace не сработали")
+                    return
+        
+        if model_space is None:
+            print("❌ ModelSpace не получен ни одним способом")
+            return
         
         # Пытаемся получить количество объектов
         try:
