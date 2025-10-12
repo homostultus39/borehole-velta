@@ -98,9 +98,12 @@ class AutoCADHandler:
             logger.error(f"Ошибка получения объектов: {e}")
             return []
     
-    def find_text_entities(self) -> List[Dict[str, Any]]:
+    def find_text_entities(self, layer_filter: str = "СКВ") -> List[Dict[str, Any]]:
         """
-        Поиск текстовых объектов в документе с оптимизацией.
+        Поиск текстовых объектов в документе с оптимизацией по слоям.
+        
+        Args:
+            layer_filter: Фильтр для поиска слоев (по умолчанию "СКВ")
         
         Returns:
             List[Dict[str, Any]]: Список словарей с информацией о текстовых объектах
@@ -113,7 +116,7 @@ class AutoCADHandler:
         processed_count = 0
         
         try:
-            logger.info("🔍 Начинаем поиск текстовых объектов...")
+            logger.info(f"🔍 Начинаем поиск текстовых объектов на слоях, содержащих '{layer_filter}'...")
             start_time = time.time()
             max_search_time = 30  # Максимум 30 секунд на поиск
             
@@ -164,32 +167,42 @@ class AutoCADHandler:
                 try:
                     # Проверяем, является ли объект текстом
                     if hasattr(entity, 'TextString'):
+                        # Получаем слой объекта
+                        entity_layer = getattr(entity, 'Layer', 'Unknown')
+                        
+                        # Фильтруем по слою (если указан фильтр)
+                        if layer_filter and layer_filter.upper() not in entity_layer.upper():
+                            continue
+                        
                         text_data = {
                             'text': entity.TextString,
                             'position': (entity.InsertionPoint[0], entity.InsertionPoint[1]),
-                            'layer': getattr(entity, 'Layer', 'Unknown'),
+                            'layer': entity_layer,
                             'entity_type': entity.EntityName
                         }
                         text_entities.append(text_data)
                         
                         # Показываем найденный текст
                         if len(text_entities) <= 5:  # Показываем первые 5
-                            logger.info(f"📝 Найден текст: '{text_data['text']}'")
+                            logger.info(f"📝 Найден текст на слое '{entity_layer}': '{text_data['text']}'")
                 
                 except Exception as e:
                     # Пропускаем проблемные объекты без остановки
                     continue
             
-            logger.info(f"✅ Поиск завершен! Найдено {len(text_entities)} текстовых объектов из {processed_count} обработанных")
+            logger.info(f"✅ Поиск завершен! Найдено {len(text_entities)} текстовых объектов на слоях с '{layer_filter}' из {processed_count} обработанных")
             return text_entities
             
         except Exception as e:
             logger.error(f"Ошибка поиска текстовых объектов: {e}")
             return []
     
-    def find_circles(self) -> List[Dict[str, Any]]:
+    def find_circles(self, layer_filter: str = "СКВ") -> List[Dict[str, Any]]:
         """
-        Поиск кругов в документе с оптимизацией.
+        Поиск кругов в документе с оптимизацией по слоям.
+        
+        Args:
+            layer_filter: Фильтр для поиска слоев (по умолчанию "СКВ")
         
         Returns:
             List[Dict[str, Any]]: Список словарей с информацией о кругах
@@ -202,7 +215,7 @@ class AutoCADHandler:
         processed_count = 0
         
         try:
-            logger.info("🔍 Начинаем поиск кругов...")
+            logger.info(f"🔍 Начинаем поиск кругов на слоях, содержащих '{layer_filter}'...")
             start_time = time.time()
             max_search_time = 30  # Максимум 30 секунд на поиск
             
@@ -252,22 +265,29 @@ class AutoCADHandler:
                 
                 try:
                     if entity.EntityName == 'AcDbCircle':
+                        # Получаем слой объекта
+                        entity_layer = getattr(entity, 'Layer', 'Unknown')
+                        
+                        # Фильтруем по слою (если указан фильтр)
+                        if layer_filter and layer_filter.upper() not in entity_layer.upper():
+                            continue
+                        
                         circle_data = {
                             'center': (entity.Center[0], entity.Center[1]),
                             'radius': entity.Radius,
-                            'layer': getattr(entity, 'Layer', 'Unknown')
+                            'layer': entity_layer
                         }
                         circles.append(circle_data)
                         
                         # Показываем найденный круг
                         if len(circles) <= 5:  # Показываем первые 5
-                            logger.info(f"⭕ Найден круг: центр {circle_data['center']}, радиус {circle_data['radius']}")
+                            logger.info(f"⭕ Найден круг на слое '{entity_layer}': центр {circle_data['center']}, радиус {circle_data['radius']}")
                 
                 except Exception as e:
                     # Пропускаем проблемные объекты без остановки
                     continue
             
-            logger.info(f"✅ Поиск завершен! Найдено {len(circles)} кругов из {processed_count} обработанных")
+            logger.info(f"✅ Поиск завершен! Найдено {len(circles)} кругов на слоях с '{layer_filter}' из {processed_count} обработанных")
             return circles
             
         except Exception as e:
@@ -333,4 +353,44 @@ class AutoCADHandler:
             'has_application': False,
             'has_document': False
         }
+    
+    def get_layers_info(self) -> List[Dict[str, Any]]:
+        """
+        Получение информации о слоях в документе.
+        
+        Returns:
+            List[Dict[str, Any]]: Список слоев с информацией
+        """
+        if not self.is_connected or not self.doc:
+            logger.error("Нет активного документа")
+            return []
+        
+        layers_info = []
+        
+        try:
+            logger.info("🔍 Получение информации о слоях...")
+            
+            # Получаем коллекцию слоев
+            layers = self.doc.Layers
+            
+            for i in range(layers.Count):
+                try:
+                    layer = layers.Item(i)
+                    layer_info = {
+                        'name': layer.Name,
+                        'color': getattr(layer, 'Color', 'Unknown'),
+                        'visible': getattr(layer, 'LayerOn', True),
+                        'locked': getattr(layer, 'Lock', False)
+                    }
+                    layers_info.append(layer_info)
+                except Exception as e:
+                    logger.warning(f"Ошибка получения информации о слое {i}: {e}")
+                    continue
+            
+            logger.info(f"✅ Получена информация о {len(layers_info)} слоях")
+            return layers_info
+            
+        except Exception as e:
+            logger.error(f"Ошибка получения информации о слоях: {e}")
+            return []
 
