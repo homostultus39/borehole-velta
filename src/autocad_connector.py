@@ -264,21 +264,17 @@ class DirectAutoCADConnector(AutoCADConnector):
             try:
                 self.doc = self.acad.ActiveDocument
                 if self.doc is None:
-                    # Создаем новый документ, если нет активного
-                    logger.info("📄 Создание нового документа в AutoCAD...")
-                    self.acad.Documents.Add()
-                    self.doc = self.acad.ActiveDocument
-                    logger.info("✅ Новый документ создан")
+                    # НЕ создаем новый документ автоматически
+                    logger.warning("⚠️ Нет активного документа. Документ должен быть открыт вручную.")
+                    return False
+                else:
+                    doc_name = getattr(self.doc, 'Name', 'Unknown')
+                    logger.info(f"📄 Активный документ: {doc_name}")
             except Exception as doc_error:
                 logger.warning(f"⚠️ Проблема с документом: {doc_error}")
-                # Пытаемся создать новый документ
-                try:
-                    self.acad.Documents.Add()
-                    self.doc = self.acad.ActiveDocument
-                    logger.info("✅ Новый документ создан после ошибки")
-                except Exception as create_error:
-                    logger.error(f"❌ Не удалось создать документ: {create_error}")
-                    return False
+                # НЕ создаем новый документ автоматически
+                logger.warning("⚠️ Не удалось получить активный документ. Документ должен быть открыт вручную.")
+                return False
             
             self.is_connected = True
             logger.info("✅ Прямое подключение к AutoCAD.Application.25 успешно")
@@ -314,10 +310,14 @@ class DirectAutoCADConnector(AutoCADConnector):
                     logger.info("📂 Нет активного документа, открываем новый...")
                 
                 # Открываем документ
-                self.acad.ActiveDocument = self.acad.Documents.Open(file_path)
-                self.doc = self.acad.ActiveDocument
-                logger.info("✅ Документ открыт успешно")
-                return True
+                try:
+                    self.acad.ActiveDocument = self.acad.Documents.Open(file_path)
+                    self.doc = self.acad.ActiveDocument
+                    logger.info("✅ Документ открыт успешно")
+                    return True
+                except Exception as open_error:
+                    logger.error(f"❌ Не удалось открыть документ: {open_error}")
+                    return False
         except Exception as e:
             logger.error(f"Ошибка открытия документа через прямое подключение: {e}")
         return False

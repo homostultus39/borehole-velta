@@ -101,10 +101,21 @@ def process_dwg_file(file_path: str, reference_borehole: Optional[str] = None,
         boreholes_data = borehole_processor.get_boreholes_data()
         reference_bh = borehole_processor.get_reference_borehole()
         
+        # Преобразуем опорную скважину в словарь для вывода
+        reference_bh_data = None
+        if reference_bh:
+            reference_bh_data = {
+                'number': reference_bh.number,
+                'x': reference_bh.x,
+                'y': reference_bh.y,
+                'z': reference_bh.z,
+                'relative_height': reference_bh.relative_height
+            }
+        
         # Вывод результатов
         console_output.print_processing_stats(len(text_entities), len(circles), len(boreholes))
         console_output.print_boreholes_summary(boreholes_data)
-        console_output.print_reference_borehole_info(reference_bh)
+        console_output.print_reference_borehole_info(reference_bh_data)
         console_output.print_boreholes_table(boreholes_data)
         console_output.print_success_message(file_path)
         console_output.print_footer()
