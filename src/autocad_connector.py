@@ -48,10 +48,18 @@ class PyAutoCADConnector(AutoCADConnector):
         """Подключение через pyautocad."""
         try:
             from pyautocad import Autocad
-            self.acad = Autocad(create_if_not_exists=True)
+            
+            # Сначала пытаемся подключиться к существующему AutoCAD
+            try:
+                self.acad = Autocad(create_if_not_exists=False)
+                logger.info("✅ Подключение к существующему AutoCAD через pyautocad")
+            except:
+                # Если не удалось, создаем новый экземпляр
+                self.acad = Autocad(create_if_not_exists=True)
+                logger.info("✅ Создание нового экземпляра AutoCAD через pyautocad")
+            
             self.doc = self.acad.ActiveDocument
             self.is_connected = True
-            logger.info("✅ Подключение через pyautocad успешно")
             return True
         except Exception as e:
             logger.error(f"❌ Ошибка подключения через pyautocad: {e}")
@@ -87,14 +95,30 @@ class Win32COMConnector(AutoCADConnector):
         try:
             import win32com.client
             
-            # Пытаемся подключиться к существующему AutoCAD
-            try:
-                self.acad = win32com.client.GetActiveObject("AutoCAD.Application")
-                logger.info("✅ Подключение к существующему AutoCAD через win32com")
-            except:
-                # Создаем новый экземпляр
-                self.acad = win32com.client.Dispatch("AutoCAD.Application")
-                logger.info("✅ Создание нового экземпляра AutoCAD через win32com")
+            # Список версий AutoCAD для попытки подключения
+            autocad_versions = [
+                "AutoCAD.Application.25",  # 2025 (работает по диагностике)
+                "AutoCAD.Application.24",  # 2024
+                "AutoCAD.Application.26",  # 2026
+                "AutoCAD.Application"      # Общая версия
+            ]
+            
+            for version in autocad_versions:
+                try:
+                    # Пытаемся подключиться к существующему AutoCAD
+                    self.acad = win32com.client.GetActiveObject(version)
+                    logger.info(f"✅ Подключение к существующему AutoCAD {version} через win32com")
+                    break
+                except:
+                    try:
+                        # Создаем новый экземпляр
+                        self.acad = win32com.client.Dispatch(version)
+                        logger.info(f"✅ Создание нового экземпляра AutoCAD {version} через win32com")
+                        break
+                    except:
+                        continue
+            else:
+                raise Exception("Не удалось подключиться ни к одной версии AutoCAD")
             
             self.doc = self.acad.ActiveDocument
             self.is_connected = True
@@ -133,14 +157,30 @@ class ComTypesConnector(AutoCADConnector):
         try:
             import comtypes.client
             
-            # Пытаемся подключиться к существующему AutoCAD
-            try:
-                self.acad = comtypes.client.GetActiveObject("AutoCAD.Application")
-                logger.info("✅ Подключение к существующему AutoCAD через comtypes")
-            except:
-                # Создаем новый экземпляр
-                self.acad = comtypes.client.CreateObject("AutoCAD.Application")
-                logger.info("✅ Создание нового экземпляра AutoCAD через comtypes")
+            # Список версий AutoCAD для попытки подключения
+            autocad_versions = [
+                "AutoCAD.Application.25",  # 2025 (работает по диагностике)
+                "AutoCAD.Application.24",  # 2024
+                "AutoCAD.Application.26",  # 2026
+                "AutoCAD.Application"      # Общая версия
+            ]
+            
+            for version in autocad_versions:
+                try:
+                    # Пытаемся подключиться к существующему AutoCAD
+                    self.acad = comtypes.client.GetActiveObject(version)
+                    logger.info(f"✅ Подключение к существующему AutoCAD {version} через comtypes")
+                    break
+                except:
+                    try:
+                        # Создаем новый экземпляр
+                        self.acad = comtypes.client.CreateObject(version)
+                        logger.info(f"✅ Создание нового экземпляра AutoCAD {version} через comtypes")
+                        break
+                    except:
+                        continue
+            else:
+                raise Exception("Не удалось подключиться ни к одной версии AutoCAD")
             
             self.doc = self.acad.ActiveDocument
             self.is_connected = True
@@ -166,11 +206,53 @@ class ComTypesConnector(AutoCADConnector):
         return False
 
 
+class DirectAutoCADConnector(AutoCADConnector):
+    """Прямое подключение к AutoCAD.Application.25 (рабочая версия)."""
+    
+    def __init__(self):
+        self.acad = None
+        self.doc = None
+        self.is_connected = False
+    
+    def connect(self) -> bool:
+        """Прямое подключение к AutoCAD.Application.25."""
+        try:
+            import win32com.client
+            
+            # Используем только рабочую версию из диагностики
+            self.acad = win32com.client.GetActiveObject("AutoCAD.Application.25")
+            self.doc = self.acad.ActiveDocument
+            self.is_connected = True
+            logger.info("✅ Прямое подключение к AutoCAD.Application.25 успешно")
+            return True
+        except Exception as e:
+            logger.error(f"❌ Ошибка прямого подключения к AutoCAD.Application.25: {e}")
+            return False
+    
+    def get_application(self):
+        return self.acad
+    
+    def get_active_document(self):
+        return self.doc
+    
+    def open_document(self, file_path: str) -> bool:
+        try:
+            if self.acad:
+                self.acad.ActiveDocument = self.acad.Documents.Open(file_path)
+                self.doc = self.acad.ActiveDocument
+                return True
+        except Exception as e:
+            logger.error(f"Ошибка открытия документа через прямое подключение: {e}")
+        return False
+
+
 class AutoCADConnectionManager:
     """Менеджер подключений к AutoCAD с fallback-механизмами."""
     
     def __init__(self):
+        # Начинаем с прямого подключения к рабочей версии
         self.connectors = [
+            DirectAutoCADConnector(),  # Прямое подключение к .25
             PyAutoCADConnector(),
             Win32COMConnector(),
             ComTypesConnector()

@@ -29,6 +29,11 @@ def test_improved_connection(file_path: str):
     # Тест 1: Подключение
     print("\n1️⃣ ТЕСТ ПОДКЛЮЧЕНИЯ")
     print("-" * 30)
+    print("🔍 Попытка подключения с использованием:")
+    print("   - DirectAutoCADConnector (AutoCAD.Application.25)")
+    print("   - PyAutoCADConnector")
+    print("   - Win32COMConnector")
+    print("   - ComTypesConnector")
     
     if handler.connect():
         print("✅ Подключение успешно!")

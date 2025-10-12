@@ -49,6 +49,12 @@ def example_advanced_usage():
     borehole_processor = BoreholeProcessor()
     console_output = ConsoleOutput()
     
+    print("🔧 Используется улучшенное подключение к AutoCAD:")
+    print("   - DirectAutoCADConnector (AutoCAD.Application.25)")
+    print("   - PyAutoCADConnector")
+    print("   - Win32COMConnector") 
+    print("   - ComTypesConnector")
+    
     try:
         # Подключение к AutoCAD
         if not autocad_handler.connect():
