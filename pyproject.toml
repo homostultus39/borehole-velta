@@ -6,9 +6,11 @@ authors = [
     {name = "homostultus39",email = "homostultus39@gmail.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.11"
 dependencies = [
-    "pyautocad>=0.2.0,<0.3.0"
+    "pyautocad>=0.2.0,<0.3.0",
+    "pywin32>=306",
+    "comtypes>=1.1.14"
 ]
 
 [tool.poetry]
