@@ -117,7 +117,15 @@ class AutoCADHandler:
             start_time = time.time()
             max_search_time = 30  # Максимум 30 секунд на поиск
             
-            for entity in self.doc.ModelSpace:
+            # Получаем ModelSpace правильно
+            try:
+                model_space = self.doc.ModelSpace
+                logger.info(f"📋 ModelSpace получен, тип: {type(model_space)}")
+            except Exception as e:
+                logger.error(f"❌ Ошибка получения ModelSpace: {e}")
+                return []
+            
+            for entity in model_space:
                 processed_count += 1
                 
                 # Проверяем время выполнения
@@ -175,7 +183,15 @@ class AutoCADHandler:
             start_time = time.time()
             max_search_time = 30  # Максимум 30 секунд на поиск
             
-            for entity in self.doc.ModelSpace:
+            # Получаем ModelSpace правильно
+            try:
+                model_space = self.doc.ModelSpace
+                logger.info(f"📋 ModelSpace получен, тип: {type(model_space)}")
+            except Exception as e:
+                logger.error(f"❌ Ошибка получения ModelSpace: {e}")
+                return []
+            
+            for entity in model_space:
                 processed_count += 1
                 
                 # Проверяем время выполнения
@@ -221,9 +237,17 @@ class AutoCADHandler:
         """
         try:
             if self.doc:
-                self.doc.Close()
-                self.doc = None
-            logger.info("Документ закрыт")
+                # Проверяем, можем ли мы закрыть документ
+                try:
+                    doc_name = getattr(self.doc, 'Name', 'Unknown')
+                    logger.info(f"📄 Закрытие документа: {doc_name}")
+                    self.doc.Close()
+                    logger.info("✅ Документ закрыт")
+                except Exception as close_error:
+                    logger.warning(f"⚠️ Не удалось закрыть документ: {close_error}")
+                    # Не критично, продолжаем
+                finally:
+                    self.doc = None
             return True
         except Exception as e:
             logger.error(f"Ошибка закрытия документа: {e}")
