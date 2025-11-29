@@ -100,7 +100,7 @@ class AutoCADHandler:
     
     def find_borehole_blocks(self, block_name: str = "скважина") -> List[Dict[str, Any]]:
         """
-        Поиск блоков с именем "скважина" в документе.
+        Поиск блоков с именем "скважина" в документе на всех слоях.
 
         Args:
             block_name: Имя блока для поиска (по умолчанию "скважина")
@@ -116,22 +116,19 @@ class AutoCADHandler:
         processed_count = 0
 
         try:
-            logger.info(f"🔍 Начинаем поиск блоков с именем '{block_name}'...")
+            logger.info(f"🔍 Поиск блоков с именем '{block_name}' на всех слоях...")
             start_time = time.time()
             max_search_time = 30
 
             model_space = None
             try:
                 model_space = self.doc.ModelSpace
-                logger.info(f"📋 ModelSpace получен, тип: {type(model_space)}")
             except:
                 try:
                     model_space = self.acad.ActiveDocument.ModelSpace
-                    logger.info(f"📋 ModelSpace получен (способ 2), тип: {type(model_space)}")
                 except:
                     try:
                         model_space = self.acad.Documents.Item(0).ModelSpace
-                        logger.info(f"📋 ModelSpace получен (способ 3), тип: {type(model_space)}")
                     except Exception as e:
                         logger.error(f"❌ Не удалось получить ModelSpace: {e}")
                         return []
@@ -152,16 +149,13 @@ class AutoCADHandler:
                     logger.info(f"📊 Обработано {processed_count} объектов за {elapsed:.1f} сек...")
 
                 try:
-                    # Проверяем, является ли объект блоком
                     if entity.EntityName == 'AcDbBlockReference':
                         entity_name = getattr(entity, 'Name', '').lower()
 
-                        # Проверяем имя блока
                         if block_name.lower() in entity_name:
                             entity_layer = getattr(entity, 'Layer', 'Unknown')
                             insertion_point = entity.InsertionPoint
 
-                            # Получаем атрибуты блока (номер скважины может быть там)
                             attributes = {}
                             try:
                                 if hasattr(entity, 'GetAttributes'):
@@ -182,13 +176,13 @@ class AutoCADHandler:
                             }
                             boreholes.append(borehole_data)
 
-                            if len(boreholes) <= 5:
-                                logger.info(f"🕳️ Найден блок '{entity_name}' на слое '{entity_layer}' в позиции {borehole_data['position']}")
+                            if len(boreholes) <= 10:
+                                logger.info(f"🕳️ Блок '{entity_name}' на слое '{entity_layer}', атрибуты: {attributes}")
 
                 except Exception as e:
                     continue
 
-            logger.info(f"✅ Поиск завершен! Найдено {len(boreholes)} блоков '{block_name}' из {processed_count} обработанных")
+            logger.info(f"✅ Найдено {len(boreholes)} блоков '{block_name}' из {processed_count} обработанных объектов")
             return boreholes
 
         except Exception as e:
