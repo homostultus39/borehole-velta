@@ -118,7 +118,6 @@ class AutoCADHandler:
         try:
             logger.info(f"🔍 Поиск блоков с именем '{block_name}' на всех слоях...")
             start_time = time.time()
-            max_search_time = 30
 
             model_space = None
             try:
@@ -139,10 +138,6 @@ class AutoCADHandler:
 
             for entity in model_space:
                 processed_count += 1
-
-                if time.time() - start_time > max_search_time:
-                    logger.warning(f"⏰ Поиск прерван по времени ({max_search_time} сек). Обработано {processed_count} объектов")
-                    break
 
                 if processed_count % 100 == 0:
                     elapsed = time.time() - start_time
