@@ -290,36 +290,35 @@ class DirectAutoCADConnector(AutoCADConnector):
         return self.doc
     
     def open_document(self, file_path: str) -> bool:
+        """
+        Открытие документа - для этой версии AutoCAD работаем только с ActiveDocument.
+        Пользователь должен открыть файл вручную.
+        """
         try:
             if self.acad:
-                # Проверяем, есть ли уже открытый документ
+                # Проверяем активный документ
                 try:
                     current_doc = self.acad.ActiveDocument
                     if current_doc:
                         current_name = getattr(current_doc, 'Name', 'Unknown')
                         logger.info(f"📄 Текущий документ: {current_name}")
-                        
+
                         # Проверяем, это ли тот файл, который нам нужен
-                        if file_path.lower().endswith(current_name.lower()) or current_name.lower() in file_path.lower():
-                            logger.info("✅ Нужный документ уже открыт, используем его")
+                        expected_name = os.path.basename(file_path)
+                        if current_name.lower() == expected_name.lower():
+                            logger.info("✅ Нужный документ уже открыт")
                             self.doc = current_doc
                             return True
                         else:
-                            logger.info("📂 Открываем новый документ...")
-                except:
-                    logger.info("📂 Нет активного документа, открываем новый...")
-                
-                # Открываем документ
-                try:
-                    self.acad.ActiveDocument = self.acad.Documents.Open(file_path)
-                    self.doc = self.acad.ActiveDocument
-                    logger.info("✅ Документ открыт успешно")
-                    return True
-                except Exception as open_error:
-                    logger.error(f"❌ Не удалось открыть документ: {open_error}")
+                            logger.warning(f"⚠️ Ожидается: {expected_name}, открыт: {current_name}")
+                            logger.warning("⚠️ Откройте нужный файл в AutoCAD вручную и запустите скрипт снова")
+                            return False
+                except Exception as doc_error:
+                    logger.error(f"❌ Ошибка получения документа: {doc_error}")
+                    logger.error("Откройте .dwg файл в AutoCAD вручную")
                     return False
         except Exception as e:
-            logger.error(f"Ошибка открытия документа через прямое подключение: {e}")
+            logger.error(f"Ошибка открытия документа: {e}")
         return False
 
 

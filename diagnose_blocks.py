@@ -22,13 +22,18 @@ def diagnose_autocad_blocks(dwg_path=None):
         acad = win32com.client.Dispatch("AutoCAD.Application")
         print(f"✅ Подключено к AutoCAD версии: {acad.Version}")
 
-        # Открываем файл если указан
-        if dwg_path:
-            doc = acad.Documents.Open(dwg_path)
-            print(f"✅ Открыт файл: {dwg_path}")
-        else:
+        # Пробуем получить активный документ
+        try:
             doc = acad.ActiveDocument
             print(f"✅ Используется активный документ: {doc.Name}")
+
+            if dwg_path:
+                print(f"⚠️ Файл указан ({dwg_path}), но используется уже открытый документ")
+                print(f"   Пожалуйста, откройте нужный файл в AutoCAD вручную перед запуском скрипта")
+        except Exception as e:
+            print(f"❌ Не удалось получить активный документ: {e}")
+            print("   Откройте нужный .dwg файл в AutoCAD и запустите скрипт снова")
+            return
 
         print("\n" + "=" * 80)
         print("АНАЛИЗ БЛОКОВ В MODELSPACE")
