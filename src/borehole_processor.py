@@ -4,6 +4,7 @@
 """
 
 import re
+import random
 import logging
 from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
@@ -38,47 +39,90 @@ class BoreholeProcessor:
             r'^(\d+)$',               # просто число
         ]
     
-    def extract_borehole_numbers(self, text_entities: List[Dict[str, Any]], 
-                                circles: List[Dict[str, Any]]) -> List[Borehole]:
+    def extract_borehole_from_blocks(self, borehole_blocks: List[Dict[str, Any]]) -> List[Borehole]:
         """
-        Извлечение номеров скважин из текстовых объектов и кругов.
-        
+        Извлечение скважин из блоков AutoCAD.
+
         Args:
-            text_entities: Список текстовых объектов из AutoCAD
-            circles: Список кругов из AutoCAD
-            
+            borehole_blocks: Список блоков "скважина" из AutoCAD
+
         Returns:
             List[Borehole]: Список найденных скважин
         """
         self.boreholes = []
-        
+
+        for idx, block in enumerate(borehole_blocks):
+            position = block['position']
+            attributes = block.get('attributes', {})
+
+            # Пытаемся найти номер скважины в атрибутах
+            borehole_number = None
+            for tag, value in attributes.items():
+                if value and self._extract_borehole_number(value):
+                    borehole_number = self._extract_borehole_number(value)
+                    break
+
+            # Если номер не найден в атрибутах, используем порядковый номер
+            if not borehole_number:
+                borehole_number = str(idx + 1)
+                logger.warning(f"Блок скважины без номера, присвоен номер {borehole_number}")
+
+            borehole = Borehole(
+                number=borehole_number,
+                x=position[0],
+                y=position[1],
+                z=position[2] if len(position) > 2 else 0.0
+            )
+
+            self.boreholes.append(borehole)
+            logger.info(f"Найдена скважина №{borehole_number} в позиции ({borehole.x:.2f}, {borehole.y:.2f}, {borehole.z:.2f})")
+
+        logger.info(f"Всего найдено {len(self.boreholes)} скважин")
+        return self.boreholes
+
+    def extract_borehole_numbers(self, text_entities: List[Dict[str, Any]],
+                                circles: List[Dict[str, Any]]) -> List[Borehole]:
+        """
+        Извлечение номеров скважин из текстовых объектов и кругов.
+
+        Args:
+            text_entities: Список текстовых объектов из AutoCAD
+            circles: Список кругов из AutoCAD
+
+        Returns:
+            List[Borehole]: Список найденных скважин
+        """
+        self.boreholes = []
+
         # Обрабатываем текстовые объекты
         for text_entity in text_entities:
             text = text_entity['text'].strip()
             position = text_entity['position']
-            
+
             # Ищем номер скважины в тексте
             borehole_number = self._extract_borehole_number(text)
             if borehole_number:
                 # Ищем ближайший круг к тексту
                 closest_circle = self._find_closest_circle(position, circles)
-                
+
                 borehole = Borehole(
                     number=borehole_number,
                     x=position[0],
                     y=position[1],
+                    z=position[2] if len(position) > 2 else 0.0,
                     text_entity=text_entity,
                     circle_entity=closest_circle
                 )
-                
+
                 # Если найден круг, используем его координаты
                 if closest_circle:
                     borehole.x = closest_circle['center'][0]
                     borehole.y = closest_circle['center'][1]
-                
+                    borehole.z = closest_circle['center'][2] if len(closest_circle['center']) > 2 else borehole.z
+
                 self.boreholes.append(borehole)
                 logger.info(f"Найдена скважина №{borehole_number} в позиции ({borehole.x:.2f}, {borehole.y:.2f})")
-        
+
         # Обрабатываем круги без текста (возможно, номера скважин в атрибутах)
         for circle in circles:
             # Проверяем, не связан ли уже этот круг со скважиной
@@ -92,12 +136,13 @@ class BoreholeProcessor:
                             number=borehole_number,
                             x=circle['center'][0],
                             y=circle['center'][1],
+                            z=circle['center'][2] if len(circle['center']) > 2 else 0.0,
                             circle_entity=circle,
                             text_entity=nearby_text
                         )
                         self.boreholes.append(borehole)
                         logger.info(f"Найдена скважина №{borehole_number} по кругу в позиции ({borehole.x:.2f}, {borehole.y:.2f})")
-        
+
         logger.info(f"Всего найдено {len(self.boreholes)} скважин")
         return self.boreholes
     
@@ -182,17 +227,17 @@ class BoreholeProcessor:
     def set_reference_borehole(self, borehole_number: Optional[str] = None) -> bool:
         """
         Установка опорной скважины с относительной высотой 0.
-        
+
         Args:
-            borehole_number: Номер опорной скважины. Если None, выбирается первая найденная.
-            
+            borehole_number: Номер опорной скважины. Если None, выбирается случайная.
+
         Returns:
             bool: True если опорная скважина установлена
         """
         if not self.boreholes:
             logger.error("Нет скважин для установки опорной")
             return False
-        
+
         if borehole_number:
             # Ищем скважину по номеру
             for borehole in self.boreholes:
@@ -204,42 +249,46 @@ class BoreholeProcessor:
             logger.error(f"Скважина №{borehole_number} не найдена")
             return False
         else:
-            # Выбираем первую скважину
-            self.reference_borehole = self.boreholes[0]
+            # Выбираем случайную скважину
+            self.reference_borehole = random.choice(self.boreholes)
             self.reference_borehole.relative_height = 0.0
-            logger.info(f"Установлена опорная скважина №{self.reference_borehole.number}")
+            logger.info(f"Случайно выбрана опорная скважина №{self.reference_borehole.number}")
             return True
     
     def calculate_relative_heights(self, reference_z: float = 0.0) -> bool:
         """
-        Расчет относительных высот скважин.
-        
+        Расчет относительных высот скважин относительно опорной скважины.
+
         Args:
-            reference_z: Z-координата опорной скважины
-            
+            reference_z: Z-координата опорной скважины (по умолчанию 0.0)
+
         Returns:
             bool: True если расчет выполнен успешно
         """
         if not self.reference_borehole:
             logger.error("Не установлена опорная скважина")
             return False
-        
-        # Устанавливаем Z-координату опорной скважины
-        self.reference_borehole.z = reference_z
-        
+
+        # Если опорная скважина имеет Z-координату из AutoCAD, используем её
+        # Иначе устанавливаем reference_z
+        if self.reference_borehole.z is None or self.reference_borehole.z == 0.0:
+            self.reference_borehole.z = reference_z
+
+        logger.info(f"Опорная скважина №{self.reference_borehole.number}: Z = {self.reference_borehole.z:.2f}")
+
         for borehole in self.boreholes:
             if borehole == self.reference_borehole:
                 continue
-            
-            # Для простоты используем Y-координату как высоту
-            # В реальном проекте здесь должна быть логика определения высоты
+
+            # Если у скважины нет Z-координаты, используем 0.0 как значение по умолчанию
             if borehole.z is None:
-                borehole.z = borehole.y  # Временная логика
-            
-            # Рассчитываем относительную высоту
+                borehole.z = 0.0
+                logger.warning(f"Скважина №{borehole.number}: Z-координата отсутствует, используется 0.0")
+
+            # Рассчитываем относительную высоту как смещение от опорной скважины
             borehole.relative_height = borehole.z - self.reference_borehole.z
-            logger.debug(f"Скважина №{borehole.number}: относительная высота = {borehole.relative_height:.2f}")
-        
+            logger.debug(f"Скважина №{borehole.number}: Z = {borehole.z:.2f}, относительная высота = {borehole.relative_height:.2f}")
+
         logger.info("Расчет относительных высот завершен")
         return True
     

@@ -72,16 +72,23 @@ def process_dwg_file(file_path: str, reference_borehole: Optional[str] = None,
             console_output.print_error_message("Не удалось открыть .dwg файл")
             return False
         
-        # Извлечение данных из AutoCAD
-        text_entities = autocad_handler.find_text_entities()
-        circles = autocad_handler.find_circles()
-        
-        if not text_entities and not circles:
-            console_output.print_warning_message("В файле не найдено текстовых объектов или кругов")
-            return False
-        
-        # Обработка скважин
-        boreholes = borehole_processor.extract_borehole_numbers(text_entities, circles)
+        # Извлечение данных из AutoCAD - сначала ищем блоки "скважина"
+        borehole_blocks = autocad_handler.find_borehole_blocks()
+
+        # Если блоки найдены, используем их
+        if borehole_blocks:
+            boreholes = borehole_processor.extract_borehole_from_blocks(borehole_blocks)
+        else:
+            # Fallback: ищем по текстовым объектам и кругам
+            logger.info("Блоки 'скважина' не найдены, ищем по текстовым объектам и кругам")
+            text_entities = autocad_handler.find_text_entities()
+            circles = autocad_handler.find_circles()
+
+            if not text_entities and not circles:
+                console_output.print_warning_message("В файле не найдено блоков скважин, текстовых объектов или кругов")
+                return False
+
+            boreholes = borehole_processor.extract_borehole_numbers(text_entities, circles)
         
         if not boreholes:
             console_output.print_warning_message("Не найдено скважин в файле")
@@ -113,7 +120,9 @@ def process_dwg_file(file_path: str, reference_borehole: Optional[str] = None,
             }
         
         # Вывод результатов
-        console_output.print_processing_stats(len(text_entities), len(circles), len(boreholes))
+        text_count = len(borehole_blocks) if borehole_blocks else 0
+        circle_count = 0
+        console_output.print_processing_stats(text_count, circle_count, len(boreholes))
         console_output.print_boreholes_summary(boreholes_data)
         console_output.print_reference_borehole_info(reference_bh_data)
         console_output.print_boreholes_table(boreholes_data)
@@ -148,7 +157,7 @@ def main():
     
     parser.add_argument(
         "-r", "--reference",
-        help="Номер опорной скважины (если не указан, выбирается первая найденная)"
+        help="Номер опорной скважины (если не указан, выбирается случайная)"
     )
     
     parser.add_argument(
