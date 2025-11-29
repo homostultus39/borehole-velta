@@ -5,6 +5,7 @@
 
 import win32com.client
 import sys
+import os
 
 def diagnose_autocad_blocks(dwg_path=None):
     """
@@ -22,18 +23,45 @@ def diagnose_autocad_blocks(dwg_path=None):
         acad = win32com.client.Dispatch("AutoCAD.Application")
         print(f"✅ Подключено к AutoCAD версии: {acad.Version}")
 
-        # Пробуем получить активный документ
+        # Получаем список всех открытых документов
+        print(f"\n📂 Открытые документы в AutoCAD:")
+        documents = []
         try:
-            doc = acad.ActiveDocument
-            print(f"✅ Используется активный документ: {doc.Name}")
+            doc_count = acad.Documents.Count
+            for i in range(doc_count):
+                doc = acad.Documents.Item(i)
+                documents.append(doc)
+                is_active = "✅ АКТИВНЫЙ" if doc == acad.ActiveDocument else ""
+                print(f"   {i+1}. {doc.Name} {is_active}")
+        except:
+            # Если Documents не работает, пытаемся через ActiveDocument
+            try:
+                doc = acad.ActiveDocument
+                documents.append(doc)
+                print(f"   1. {doc.Name} ✅ АКТИВНЫЙ")
+            except Exception as e:
+                print(f"❌ Не удалось получить документы: {e}")
+                return
 
-            if dwg_path:
-                print(f"⚠️ Файл указан ({dwg_path}), но используется уже открытый документ")
-                print(f"   Пожалуйста, откройте нужный файл в AutoCAD вручную перед запуском скрипта")
-        except Exception as e:
-            print(f"❌ Не удалось получить активный документ: {e}")
-            print("   Откройте нужный .dwg файл в AutoCAD и запустите скрипт снова")
-            return
+        # Выбираем нужный документ
+        doc = None
+        if dwg_path:
+            # Ищем документ по имени файла
+            target_name = os.path.basename(dwg_path)
+            for d in documents:
+                if d.Name.lower() == target_name.lower():
+                    doc = d
+                    print(f"\n✅ Найден нужный документ: {doc.Name}")
+                    break
+
+            if not doc:
+                print(f"\n⚠️ Документ '{target_name}' не найден среди открытых")
+                print(f"   Откройте файл {dwg_path} в AutoCAD и запустите скрипт снова")
+                return
+        else:
+            # Используем активный документ
+            doc = acad.ActiveDocument
+            print(f"\n✅ Используется активный документ: {doc.Name}")
 
         print("\n" + "=" * 80)
         print("АНАЛИЗ БЛОКОВ В MODELSPACE")
