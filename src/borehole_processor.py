@@ -41,10 +41,10 @@ class BoreholeProcessor:
     
     def extract_borehole_from_blocks(self, borehole_blocks: List[Dict[str, Any]]) -> List[Borehole]:
         """
-        Извлечение скважин из блоков AutoCAD.
+        Извлечение скважин из вставок блоков AutoCAD.
 
         Args:
-            borehole_blocks: Список блоков "скважина" из AutoCAD
+            borehole_blocks: Список вставок блоков "скважина" из AutoCAD
 
         Returns:
             List[Borehole]: Список найденных скважин
@@ -60,12 +60,13 @@ class BoreholeProcessor:
             for tag, value in attributes.items():
                 if value and self._extract_borehole_number(value):
                     borehole_number = self._extract_borehole_number(value)
+                    logger.debug(f"Найден номер в атрибуте '{tag}': {borehole_number}")
                     break
 
             # Если номер не найден в атрибутах, используем порядковый номер
             if not borehole_number:
                 borehole_number = str(idx + 1)
-                logger.warning(f"Блок скважины без номера, присвоен номер {borehole_number}")
+                logger.warning(f"Вставка блока без номера в атрибутах, присвоен номер {borehole_number}")
 
             borehole = Borehole(
                 number=borehole_number,
@@ -75,154 +76,29 @@ class BoreholeProcessor:
             )
 
             self.boreholes.append(borehole)
-            logger.info(f"Найдена скважина №{borehole_number} в позиции ({borehole.x:.2f}, {borehole.y:.2f}, {borehole.z:.2f})")
+            logger.info(f"Скважина №{borehole_number}: позиция ({borehole.x:.2f}, {borehole.y:.2f}, {borehole.z:.2f})")
 
-        logger.info(f"Всего найдено {len(self.boreholes)} скважин")
-        return self.boreholes
-
-    def extract_borehole_numbers(self, text_entities: List[Dict[str, Any]],
-                                circles: List[Dict[str, Any]]) -> List[Borehole]:
-        """
-        Извлечение номеров скважин из текстовых объектов и кругов.
-
-        Args:
-            text_entities: Список текстовых объектов из AutoCAD
-            circles: Список кругов из AutoCAD
-
-        Returns:
-            List[Borehole]: Список найденных скважин
-        """
-        self.boreholes = []
-
-        # Обрабатываем текстовые объекты
-        for text_entity in text_entities:
-            text = text_entity['text'].strip()
-            position = text_entity['position']
-
-            # Ищем номер скважины в тексте
-            borehole_number = self._extract_borehole_number(text)
-            if borehole_number:
-                # Ищем ближайший круг к тексту
-                closest_circle = self._find_closest_circle(position, circles)
-
-                borehole = Borehole(
-                    number=borehole_number,
-                    x=position[0],
-                    y=position[1],
-                    z=position[2] if len(position) > 2 else 0.0,
-                    text_entity=text_entity,
-                    circle_entity=closest_circle
-                )
-
-                # Если найден круг, используем его координаты
-                if closest_circle:
-                    borehole.x = closest_circle['center'][0]
-                    borehole.y = closest_circle['center'][1]
-                    borehole.z = closest_circle['center'][2] if len(closest_circle['center']) > 2 else borehole.z
-
-                self.boreholes.append(borehole)
-                logger.info(f"Найдена скважина №{borehole_number} в позиции ({borehole.x:.2f}, {borehole.y:.2f})")
-
-        # Обрабатываем круги без текста (возможно, номера скважин в атрибутах)
-        for circle in circles:
-            # Проверяем, не связан ли уже этот круг со скважиной
-            if not any(bh.circle_entity == circle for bh in self.boreholes):
-                # Пытаемся найти текст рядом с кругом
-                nearby_text = self._find_nearby_text(circle['center'], text_entities)
-                if nearby_text:
-                    borehole_number = self._extract_borehole_number(nearby_text['text'])
-                    if borehole_number:
-                        borehole = Borehole(
-                            number=borehole_number,
-                            x=circle['center'][0],
-                            y=circle['center'][1],
-                            z=circle['center'][2] if len(circle['center']) > 2 else 0.0,
-                            circle_entity=circle,
-                            text_entity=nearby_text
-                        )
-                        self.boreholes.append(borehole)
-                        logger.info(f"Найдена скважина №{borehole_number} по кругу в позиции ({borehole.x:.2f}, {borehole.y:.2f})")
-
-        logger.info(f"Всего найдено {len(self.boreholes)} скважин")
+        logger.info(f"Всего обработано {len(self.boreholes)} скважин")
         return self.boreholes
     
     def _extract_borehole_number(self, text: str) -> Optional[str]:
         """
         Извлечение номера скважины из текста.
-        
+
         Args:
             text: Текст для анализа
-            
+
         Returns:
             Optional[str]: Номер скважины или None
         """
         text_lower = text.lower()
-        
+
         for pattern in self.borehole_patterns:
             match = re.search(pattern, text_lower)
             if match:
                 return match.group(1)
-        
+
         return None
-    
-    def _find_closest_circle(self, text_position: Tuple[float, float], 
-                           circles: List[Dict[str, Any]], 
-                           max_distance: float = 50.0) -> Optional[Dict[str, Any]]:
-        """
-        Поиск ближайшего круга к тексту.
-        
-        Args:
-            text_position: Позиция текста (x, y)
-            circles: Список кругов
-            max_distance: Максимальное расстояние для поиска
-            
-        Returns:
-            Optional[Dict[str, Any]]: Ближайший круг или None
-        """
-        if not circles:
-            return None
-        
-        closest_circle = None
-        min_distance = float('inf')
-        
-        for circle in circles:
-            circle_center = circle['center']
-            distance = ((text_position[0] - circle_center[0]) ** 2 + 
-                       (text_position[1] - circle_center[1]) ** 2) ** 0.5
-            
-            if distance < min_distance and distance <= max_distance:
-                min_distance = distance
-                closest_circle = circle
-        
-        return closest_circle
-    
-    def _find_nearby_text(self, circle_center: Tuple[float, float], 
-                         text_entities: List[Dict[str, Any]], 
-                         max_distance: float = 50.0) -> Optional[Dict[str, Any]]:
-        """
-        Поиск текста рядом с кругом.
-        
-        Args:
-            circle_center: Центр круга (x, y)
-            text_entities: Список текстовых объектов
-            max_distance: Максимальное расстояние для поиска
-            
-        Returns:
-            Optional[Dict[str, Any]]: Ближайший текст или None
-        """
-        closest_text = None
-        min_distance = float('inf')
-        
-        for text_entity in text_entities:
-            text_position = text_entity['position']
-            distance = ((circle_center[0] - text_position[0]) ** 2 + 
-                       (circle_center[1] - text_position[1]) ** 2) ** 0.5
-            
-            if distance < min_distance and distance <= max_distance:
-                min_distance = distance
-                closest_text = text_entity
-        
-        return closest_text
     
     def set_reference_borehole(self, borehole_number: Optional[str] = None) -> bool:
         """

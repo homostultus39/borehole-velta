@@ -98,15 +98,16 @@ class AutoCADHandler:
             logger.error(f"Ошибка получения объектов: {e}")
             return []
     
-    def find_borehole_blocks(self, block_name: str = "скважина") -> List[Dict[str, Any]]:
+    def find_borehole_blocks(self, block_name: str = "скважина", layer_prefix: str = "СКВ") -> List[Dict[str, Any]]:
         """
-        Поиск блоков с именем "скважина" в документе на всех слоях.
+        Поиск всех вставок блоков с именем "скважина" на слоях, начинающихся с "СКВ".
 
         Args:
             block_name: Имя блока для поиска (по умолчанию "скважина")
+            layer_prefix: Префикс слоя (по умолчанию "СКВ")
 
         Returns:
-            List[Dict[str, Any]]: Список словарей с информацией о блоках скважин
+            List[Dict[str, Any]]: Список словарей с информацией о каждой вставке блока
         """
         if not self.is_connected or not self.doc:
             logger.error("Нет активного документа")
@@ -114,9 +115,10 @@ class AutoCADHandler:
 
         boreholes = []
         processed_count = 0
+        skipped_layers = 0
 
         try:
-            logger.info(f"🔍 Поиск блоков с именем '{block_name}' на всех слоях...")
+            logger.info(f"🔍 Поиск вставок блока '{block_name}' на слоях, начинающихся с '{layer_prefix}'...")
             start_time = time.time()
 
             model_space = None
@@ -139,9 +141,9 @@ class AutoCADHandler:
             for entity in model_space:
                 processed_count += 1
 
-                if processed_count % 100 == 0:
+                if processed_count % 1000 == 0:
                     elapsed = time.time() - start_time
-                    logger.info(f"📊 Обработано {processed_count} объектов за {elapsed:.1f} сек...")
+                    logger.info(f"📊 Обработано {processed_count} объектов, найдено {len(boreholes)} скважин за {elapsed:.1f} сек...")
 
                 try:
                     if entity.EntityName == 'AcDbBlockReference':
@@ -149,6 +151,12 @@ class AutoCADHandler:
 
                         if block_name.lower() in entity_name:
                             entity_layer = getattr(entity, 'Layer', 'Unknown')
+
+                            # Фильтруем по префиксу слоя
+                            if not entity_layer.upper().startswith(layer_prefix.upper()):
+                                skipped_layers += 1
+                                continue
+
                             insertion_point = entity.InsertionPoint
 
                             attributes = {}
@@ -172,194 +180,18 @@ class AutoCADHandler:
                             boreholes.append(borehole_data)
 
                             if len(boreholes) <= 10:
-                                logger.info(f"🕳️ Блок '{entity_name}' на слое '{entity_layer}', атрибуты: {attributes}")
+                                logger.info(f"🕳️ Вставка #{len(boreholes)}: блок '{entity_name}' на слое '{entity_layer}', позиция ({insertion_point[0]:.2f}, {insertion_point[1]:.2f}, {insertion_point[2]:.2f}), атрибуты: {attributes}")
 
                 except Exception as e:
                     continue
 
-            logger.info(f"✅ Найдено {len(boreholes)} блоков '{block_name}' из {processed_count} обработанных объектов")
+            elapsed_total = time.time() - start_time
+            logger.info(f"✅ Найдено {len(boreholes)} вставок блока '{block_name}' из {processed_count} обработанных объектов за {elapsed_total:.1f} сек")
+            logger.info(f"📋 Пропущено {skipped_layers} блоков на других слоях")
             return boreholes
 
         except Exception as e:
             logger.error(f"Ошибка поиска блоков скважин: {e}")
-            return []
-
-    def find_text_entities(self, layer_filter: str = "СКВ") -> List[Dict[str, Any]]:
-        """
-        Поиск текстовых объектов в документе с оптимизацией по слоям.
-
-        Args:
-            layer_filter: Фильтр для поиска слоев (по умолчанию "СКВ")
-
-        Returns:
-            List[Dict[str, Any]]: Список словарей с информацией о текстовых объектах
-        """
-        if not self.is_connected or not self.doc:
-            logger.error("Нет активного документа")
-            return []
-
-        text_entities = []
-        processed_count = 0
-
-        try:
-            logger.info(f"🔍 Начинаем поиск текстовых объектов на слоях, содержащих '{layer_filter}'...")
-            start_time = time.time()
-            max_search_time = 30
-
-            model_space = None
-            try:
-                model_space = self.doc.ModelSpace
-                logger.info(f"📋 ModelSpace получен, тип: {type(model_space)}")
-            except:
-                try:
-                    model_space = self.acad.ActiveDocument.ModelSpace
-                    logger.info(f"📋 ModelSpace получен (способ 2), тип: {type(model_space)}")
-                except:
-                    try:
-                        model_space = self.acad.Documents.Item(0).ModelSpace
-                        logger.info(f"📋 ModelSpace получен (способ 3), тип: {type(model_space)}")
-                    except Exception as e:
-                        logger.error(f"❌ Не удалось получить ModelSpace: {e}")
-                        return []
-
-            if model_space is None:
-                logger.error("❌ ModelSpace не получен")
-                return []
-
-            for entity in model_space:
-                processed_count += 1
-
-                if time.time() - start_time > max_search_time:
-                    logger.warning(f"⏰ Поиск прерван по времени ({max_search_time} сек). Обработано {processed_count} объектов")
-                    break
-
-                if processed_count % 100 == 0:
-                    elapsed = time.time() - start_time
-                    logger.info(f"📊 Обработано {processed_count} объектов за {elapsed:.1f} сек...")
-
-                try:
-                    if hasattr(entity, 'TextString'):
-                        entity_layer = getattr(entity, 'Layer', 'Unknown')
-
-                        if layer_filter and layer_filter.upper() not in entity_layer.upper():
-                            continue
-
-                        text_data = {
-                            'text': entity.TextString,
-                            'position': (entity.InsertionPoint[0], entity.InsertionPoint[1], entity.InsertionPoint[2]),
-                            'layer': entity_layer,
-                            'entity_type': entity.EntityName
-                        }
-                        text_entities.append(text_data)
-
-                        if len(text_entities) <= 5:
-                            logger.info(f"📝 Найден текст на слое '{entity_layer}': '{text_data['text']}'")
-
-                except Exception as e:
-                    continue
-
-            logger.info(f"✅ Поиск завершен! Найдено {len(text_entities)} текстовых объектов на слоях с '{layer_filter}' из {processed_count} обработанных")
-            return text_entities
-
-        except Exception as e:
-            logger.error(f"Ошибка поиска текстовых объектов: {e}")
-            return []
-    
-    def find_circles(self, layer_filter: str = "СКВ") -> List[Dict[str, Any]]:
-        """
-        Поиск кругов в документе с оптимизацией по слоям.
-        
-        Args:
-            layer_filter: Фильтр для поиска слоев (по умолчанию "СКВ")
-        
-        Returns:
-            List[Dict[str, Any]]: Список словарей с информацией о кругах
-        """
-        if not self.is_connected or not self.doc:
-            logger.error("Нет активного документа")
-            return []
-        
-        circles = []
-        processed_count = 0
-        
-        try:
-            logger.info(f"🔍 Начинаем поиск кругов на слоях, содержащих '{layer_filter}'...")
-            start_time = time.time()
-            max_search_time = 30  # Максимум 30 секунд на поиск
-            
-            # Получаем ModelSpace правильно через COM-интерфейс
-            try:
-                # Пытаемся получить ModelSpace разными способами
-                model_space = None
-                
-                # Способ 1: Прямое обращение
-                try:
-                    model_space = self.doc.ModelSpace
-                    logger.info(f"📋 ModelSpace получен (способ 1), тип: {type(model_space)}")
-                except:
-                    # Способ 2: Через ActiveDocument
-                    try:
-                        model_space = self.acad.ActiveDocument.ModelSpace
-                        logger.info(f"📋 ModelSpace получен (способ 2), тип: {type(model_space)}")
-                    except:
-                        # Способ 3: Через Documents коллекцию
-                        try:
-                            model_space = self.acad.Documents.Item(0).ModelSpace
-                            logger.info(f"📋 ModelSpace получен (способ 3), тип: {type(model_space)}")
-                        except Exception as e:
-                            logger.error(f"❌ Все способы получения ModelSpace не сработали: {e}")
-                            return []
-                
-                if model_space is None:
-                    logger.error("❌ ModelSpace не получен ни одним способом")
-                    return []
-                    
-            except Exception as e:
-                logger.error(f"❌ Ошибка получения ModelSpace: {e}")
-                return []
-            
-            for entity in model_space:
-                processed_count += 1
-                
-                # Проверяем время выполнения
-                if time.time() - start_time > max_search_time:
-                    logger.warning(f"⏰ Поиск прерван по времени ({max_search_time} сек). Обработано {processed_count} объектов")
-                    break
-                
-                # Показываем прогресс каждые 100 объектов
-                if processed_count % 100 == 0:
-                    elapsed = time.time() - start_time
-                    logger.info(f"📊 Обработано {processed_count} объектов за {elapsed:.1f} сек...")
-                
-                try:
-                    if entity.EntityName == 'AcDbCircle':
-                        # Получаем слой объекта
-                        entity_layer = getattr(entity, 'Layer', 'Unknown')
-                        
-                        # Фильтруем по слою (если указан фильтр)
-                        if layer_filter and layer_filter.upper() not in entity_layer.upper():
-                            continue
-                        
-                        circle_data = {
-                            'center': (entity.Center[0], entity.Center[1], entity.Center[2]),
-                            'radius': entity.Radius,
-                            'layer': entity_layer
-                        }
-                        circles.append(circle_data)
-                        
-                        # Показываем найденный круг
-                        if len(circles) <= 5:  # Показываем первые 5
-                            logger.info(f"⭕ Найден круг на слое '{entity_layer}': центр {circle_data['center']}, радиус {circle_data['radius']}")
-                
-                except Exception as e:
-                    # Пропускаем проблемные объекты без остановки
-                    continue
-            
-            logger.info(f"✅ Поиск завершен! Найдено {len(circles)} кругов на слоях с '{layer_filter}' из {processed_count} обработанных")
-            return circles
-            
-        except Exception as e:
-            logger.error(f"Ошибка поиска кругов: {e}")
             return []
     
     def close_document(self) -> bool:
